@@ -40,7 +40,7 @@ export function DataParser() {
         return;
       }
 
-      let rowData: Partial<ParsedData> = {};
+      const rowData: Partial<ParsedData> = {};
 
       fields.forEach((field) => {
         if (field.includes("@")) {
