@@ -1,11 +1,11 @@
 "use client";
 
-import { CSVParser } from "@/components/csv-parser";
+import { DataParser } from "@/components/data-parser";
 
 export default function Page() {
   return (
     <main className="min-h-screen bg-background">
-      <CSVParser />
+      <DataParser />
     </main>
   );
 }

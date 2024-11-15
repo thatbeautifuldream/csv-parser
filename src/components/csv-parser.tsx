@@ -34,7 +34,6 @@ export function CSVParser() {
       complete: (results) => {
         const validRows: ValidRow[] = [];
         const errors: string[] = [];
-
         results.data.forEach((row: any, index: number) => {
           if (index === 0) return; // Skip header row
           try {
