@@ -31,9 +31,24 @@ export function DataParser() {
   const handleParse = () => {
     setError(null);
     const rows = input.trim().split("\n");
+
+    if (rows.length === 0) {
+      setError("No data provided");
+      return;
+    }
+
+    // Check if first row is a header
+    const firstRow = rows[0].toLowerCase();
+    const isHeader =
+      firstRow.includes("name") ||
+      firstRow.includes("email") ||
+      firstRow.includes("phone");
+
+    // Start from index 1 if header is detected, otherwise start from 0
+    const dataRows = isHeader ? rows.slice(1) : rows;
     const parsed: ParsedData[] = [];
 
-    for (const row of rows) {
+    for (const row of dataRows) {
       const fields = row.split("\t");
       if (fields.length !== 3) {
         setError(`Invalid row: ${row}. Expected 3 fields.`);
@@ -42,6 +57,7 @@ export function DataParser() {
 
       const rowData: Partial<ParsedData> = {};
 
+      // Process each field in the row
       fields.forEach((field) => {
         if (field.includes("@")) {
           rowData.email = field.trim();
