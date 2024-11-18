@@ -33,10 +33,17 @@ export function CSVParser() {
 
     // Check if first row is a header
     const firstRow = rows[0].toLowerCase();
-    const isHeader =
-      firstRow.includes("name") ||
-      firstRow.includes("email") ||
-      firstRow.includes("phone");
+
+    const headerPatterns = {
+      name: /(^|\b)(name|full\s*name|customer|client|contact|person)($|\b)/i,
+      email:
+        /(^|\b)(email|e-mail|mail|address|contact|electronic\s*mail)($|\b)/i,
+      phone: /(^|\b)(phone|tel|telephone|mobile|cell|contact|number)($|\b)/i,
+    };
+
+    const isHeader = Object.values(headerPatterns).some((pattern) =>
+      pattern.test(firstRow)
+    );
 
     // Start from index 1 if header is detected, otherwise start from 0
     const dataRows = isHeader ? rows.slice(1) : rows;
