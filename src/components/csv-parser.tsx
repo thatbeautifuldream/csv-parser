@@ -14,7 +14,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useCSVStore, RowSchema, ParsedData } from "@/lib/stores/csv-store";
+import {
+  useCSVStore,
+  RowSchema,
+  type ParsedData,
+} from "@/lib/stores/csv-store";
 import { z } from "zod";
 
 export function CSVParser() {
@@ -22,8 +26,8 @@ export function CSVParser() {
   const [error, setError] = useState<string[]>([]);
   const { parsedData, setParsedData, deleteEntry } = useCSVStore();
 
-  const handleParse = () => {
-    setError([]);
+  function handleParse() {
+    const errors: string[] = [];
     const rows = input.trim().split("\n");
 
     if (rows.length === 0) {
@@ -52,78 +56,116 @@ export function CSVParser() {
       parsedData.map((entry) => entry.email.toLowerCase())
     );
     const seenPhones = new Set(parsedData.map((entry) => entry.phone));
-    const duplicateErrors: string[] = [];
 
-    for (const row of dataRows) {
+    const emailCounts = new Map<string, number>();
+    const phoneCounts = new Map<string, number>();
+
+    dataRows.forEach((row, index) => {
+      const rowNumber = isHeader ? index + 2 : index + 1; // Add 1 for 0-based index, add 2 if header exists
       const fields = row.split("\t");
+
       if (fields.length !== 3) {
-        setError([`Invalid row: ${row}. Expected 3 fields.`]);
+        errors.push(`Invalid number of fields at Row ${rowNumber}`);
         return;
       }
 
-      const rowData: Partial<ParsedData> = {
-        id: uuidv4(),
+      // Store original values before processing
+      const originalValues = {
+        name: "",
+        email: "",
+        phone: "",
       };
 
-      // Process each field in the row
+      // First pass: categorize fields while keeping original values
       fields.forEach((field) => {
-        if (field.includes("@")) {
-          rowData.email = field.trim();
-        } else if (/^\+?[0-9]{10,14}$/.test(field.trim())) {
-          rowData.phone = field.trim();
+        const trimmedField = field.trim();
+        if (trimmedField.includes("@")) {
+          originalValues.email = trimmedField;
+        } else if (/^\+?[0-9]{10,14}$/.test(trimmedField)) {
+          originalValues.phone = trimmedField;
         } else {
-          rowData.name = field.trim();
+          originalValues.name = trimmedField;
         }
       });
+
+      const rowData: Partial<ParsedData> = {
+        id: uuidv4(),
+        name: originalValues.name,
+        email: originalValues.email,
+        phone: originalValues.phone,
+      };
 
       try {
         const validatedRow = RowSchema.parse(rowData);
 
-        // Check and record duplicates with more detailed error messages
         const duplicateDetails = [];
+        const emailLower = validatedRow.email.toLowerCase();
+        const phone = validatedRow.phone;
 
-        if (seenEmails.has(validatedRow.email.toLowerCase())) {
-          duplicateDetails.push(`email: ${validatedRow.email}`);
+        // Update counts
+        emailCounts.set(emailLower, (emailCounts.get(emailLower) || 0) + 1);
+        phoneCounts.set(phone, (phoneCounts.get(phone) || 0) + 1);
+
+        // Show errors starting from the first duplicate (second occurrence)
+        if (emailCounts.get(emailLower)! > 1) {
+          duplicateDetails.push("email");
         }
-        if (seenPhones.has(validatedRow.phone)) {
-          duplicateDetails.push(`phone: ${validatedRow.phone}`);
+        if (phoneCounts.get(phone)! > 1) {
+          duplicateDetails.push("phone");
         }
 
         if (duplicateDetails.length > 0) {
-          duplicateErrors.push(
-            `Duplicate entry found (${duplicateDetails.join(
-              ", "
-            )}) for contact: ${validatedRow.name}`
+          errors.push(
+            `Duplicate ${duplicateDetails.join(" and ")} at Row ${rowNumber}`
           );
-          continue;
-        }
-
-        // Add to seen sets
-        seenEmails.add(validatedRow.email.toLowerCase());
-        seenPhones.add(validatedRow.phone);
-        parsed.push(validatedRow);
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          setError([
-            `Validation error in row: ${row}. ${err.errors
-              .map((e) => e.message)
-              .join(", ")}`,
-          ]);
           return;
         }
+
+        // Only add to parsed data if it's the first occurrence
+        if (
+          emailCounts.get(emailLower)! === 1 &&
+          phoneCounts.get(phone)! === 1
+        ) {
+          seenEmails.add(emailLower);
+          seenPhones.add(phone);
+          parsed.push(validatedRow);
+        }
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          err.errors.forEach((error) => {
+            const fieldName = error.path[0];
+            errors.push(`Invalid ${fieldName} at Row ${rowNumber}`);
+          });
+        }
+      }
+    });
+
+    // Update the table with any valid entries
+    if (parsed.length > 0) {
+      // Filter out any parsed entries that already exist in parsedData
+      const uniqueParsed = parsed.filter(
+        (newEntry) =>
+          !parsedData.some(
+            (existingEntry) =>
+              existingEntry.email.toLowerCase() ===
+                newEntry.email.toLowerCase() ||
+              existingEntry.phone === newEntry.phone
+          )
+      );
+
+      // Only update if we have unique entries
+      if (uniqueParsed.length > 0) {
+        setParsedData([...parsedData, ...uniqueParsed]);
       }
     }
 
-    // Only set error if we have duplicates but also have valid entries
-    if (duplicateErrors.length > 0) {
-      setError(duplicateErrors);
+    // Set all collected errors
+    if (errors.length > 0) {
+      setError(errors);
+    } else {
+      setError([]);
     }
-
-    // Still update the data if we have any valid entries
-    if (parsed.length > 0) {
-      setParsedData([...parsedData, ...parsed]);
-    }
-  };
+  }
 
   return (
     <div className="container mx-auto p-4 space-y-4">
