@@ -19,15 +19,15 @@ import { z } from "zod";
 
 export function CSVParser() {
   const [input, setInput] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string[]>([]);
   const { parsedData, setParsedData, deleteEntry } = useCSVStore();
 
   const handleParse = () => {
-    setError(null);
+    setError([]);
     const rows = input.trim().split("\n");
 
     if (rows.length === 0) {
-      setError("No data provided");
+      setError(["No data provided"]);
       return;
     }
 
@@ -48,16 +48,21 @@ export function CSVParser() {
     // Start from index 1 if header is detected, otherwise start from 0
     const dataRows = isHeader ? rows.slice(1) : rows;
     const parsed: ParsedData[] = [];
+    const seenEmails = new Set(
+      parsedData.map((entry) => entry.email.toLowerCase())
+    );
+    const seenPhones = new Set(parsedData.map((entry) => entry.phone));
+    const duplicateErrors: string[] = [];
 
     for (const row of dataRows) {
       const fields = row.split("\t");
       if (fields.length !== 3) {
-        setError(`Invalid row: ${row}. Expected 3 fields.`);
+        setError([`Invalid row: ${row}. Expected 3 fields.`]);
         return;
       }
 
       const rowData: Partial<ParsedData> = {
-        id: uuidv4(), // Add unique ID for each row
+        id: uuidv4(),
       };
 
       // Process each field in the row
@@ -73,20 +78,51 @@ export function CSVParser() {
 
       try {
         const validatedRow = RowSchema.parse(rowData);
+
+        // Check and record duplicates with more detailed error messages
+        const duplicateDetails = [];
+
+        if (seenEmails.has(validatedRow.email.toLowerCase())) {
+          duplicateDetails.push(`email: ${validatedRow.email}`);
+        }
+        if (seenPhones.has(validatedRow.phone)) {
+          duplicateDetails.push(`phone: ${validatedRow.phone}`);
+        }
+
+        if (duplicateDetails.length > 0) {
+          duplicateErrors.push(
+            `Duplicate entry found (${duplicateDetails.join(
+              ", "
+            )}) for contact: ${validatedRow.name}`
+          );
+          continue;
+        }
+
+        // Add to seen sets
+        seenEmails.add(validatedRow.email.toLowerCase());
+        seenPhones.add(validatedRow.phone);
         parsed.push(validatedRow);
       } catch (err) {
         if (err instanceof z.ZodError) {
-          setError(
+          setError([
             `Validation error in row: ${row}. ${err.errors
               .map((e) => e.message)
-              .join(", ")}`
-          );
+              .join(", ")}`,
+          ]);
           return;
         }
       }
     }
 
-    setParsedData(parsed);
+    // Only set error if we have duplicates but also have valid entries
+    if (duplicateErrors.length > 0) {
+      setError(duplicateErrors);
+    }
+
+    // Still update the data if we have any valid entries
+    if (parsed.length > 0) {
+      setParsedData([...parsedData, ...parsed]);
+    }
   };
 
   return (
@@ -109,10 +145,16 @@ export function CSVParser() {
         />
       </div>
       <Button onClick={handleParse}>Parse Data</Button>
-      {error && (
+      {error.length > 0 && (
         <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertTitle>Errors Found</AlertTitle>
+          <AlertDescription>
+            <ul className="list-disc pl-4">
+              {error.map((err, index) => (
+                <li key={index}>{err}</li>
+              ))}
+            </ul>
+          </AlertDescription>
         </Alert>
       )}
       {parsedData.length > 0 && (
