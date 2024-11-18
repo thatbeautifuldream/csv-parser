@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { z } from "zod";
+import { Trash2 } from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -13,20 +14,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
-// Define the schema for each row
-const RowSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  phone: z.string().regex(/^\+?[0-9]{10,14}$/, "Invalid phone number"),
-  email: z.string().email("Invalid email address"),
-});
-
-type ParsedData = z.infer<typeof RowSchema>;
+import { useCSVStore, RowSchema, ParsedData } from "@/lib/stores/csv-store";
+import { z } from "zod";
 
 export function CSVParser() {
   const [input, setInput] = useState("");
-  const [parsedData, setParsedData] = useState<ParsedData[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const { parsedData, setParsedData, deleteEntry } = useCSVStore();
 
   const handleParse = () => {
     setError(null);
@@ -55,7 +49,9 @@ export function CSVParser() {
         return;
       }
 
-      const rowData: Partial<ParsedData> = {};
+      const rowData: Partial<ParsedData> = {
+        id: uuidv4(), // Add unique ID for each row
+      };
 
       // Process each field in the row
       fields.forEach((field) => {
@@ -88,7 +84,7 @@ export function CSVParser() {
 
   return (
     <div className="container mx-auto p-4 space-y-4">
-      <h1 className="text-2xl font-bold">Advanced Data Parser</h1>
+      <h1 className="text-2xl font-bold">CSV Data Parser</h1>
       <div className="space-y-2">
         <label
           htmlFor="data-input"
@@ -119,14 +115,25 @@ export function CSVParser() {
               <TableHead>Name</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Email</TableHead>
+              <TableHead className="w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {parsedData.map((item, index) => (
-              <TableRow key={index}>
+            {parsedData.map((item) => (
+              <TableRow key={item.id}>
                 <TableCell>{item.name}</TableCell>
                 <TableCell>{item.phone}</TableCell>
                 <TableCell>{item.email}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => deleteEntry(item.id)}
+                    className="hover:text-red-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
