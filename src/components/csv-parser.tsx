@@ -26,6 +26,29 @@ export function CSVParser() {
   const [error, setError] = useState<string[]>([]);
   const { parsedData, setParsedData, deleteEntry } = useCSVStore();
 
+  function detectDelimiter(content: string): string {
+    // Check first line for delimiter
+    const firstLine = content.split("\n")[0];
+    if (firstLine.includes("\t")) return "\t";
+    if (firstLine.includes(",")) return ",";
+    return "\t"; // default to tab
+  }
+
+  function splitRow(row: string, delimiter: string): string[] {
+    // Handle cases where fields might contain commas within quotes
+    if (delimiter === ",") {
+      const matches = row.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g);
+      if (matches) {
+        return matches.map((field) =>
+          field.startsWith('"') && field.endsWith('"')
+            ? field.slice(1, -1)
+            : field
+        );
+      }
+    }
+    return row.split(delimiter);
+  }
+
   function handleParse() {
     const errors: string[] = [];
     const rows = input.trim().split("\n");
@@ -34,6 +57,8 @@ export function CSVParser() {
       setError(["No data provided"]);
       return;
     }
+
+    const delimiter = detectDelimiter(input);
 
     // Check if first row is a header
     const firstRow = rows[0].toLowerCase();
@@ -49,7 +74,6 @@ export function CSVParser() {
       pattern.test(firstRow)
     );
 
-    // Start from index 1 if header is detected, otherwise start from 0
     const dataRows = isHeader ? rows.slice(1) : rows;
     const parsed: ParsedData[] = [];
     const seenEmails = new Set(
@@ -61,8 +85,8 @@ export function CSVParser() {
     const phoneCounts = new Map<string, number>();
 
     dataRows.forEach((row, index) => {
-      const rowNumber = isHeader ? index + 2 : index + 1; // Add 1 for 0-based index, add 2 if header exists
-      const fields = row.split("\t");
+      const rowNumber = isHeader ? index + 2 : index + 1;
+      const fields = splitRow(row, delimiter);
 
       if (fields.length !== 3) {
         errors.push(`Invalid number of fields at Row ${rowNumber}`);
@@ -161,13 +185,13 @@ export function CSVParser() {
           htmlFor="data-input"
           className="block text-sm font-medium text-gray-700"
         >
-          Paste your data here (from your sheets):
+          Paste your data here (from your sheets or CSV):
         </label>
         <Textarea
           id="data-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="name&#9;phone&#9;email"
+          placeholder="name,phone,email&#10;or&#10;name&#9;phone&#9;email"
           rows={5}
           className="w-full"
         />
