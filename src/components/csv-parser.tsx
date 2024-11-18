@@ -161,13 +161,13 @@ export function CSVParser() {
           htmlFor="data-input"
           className="block text-sm font-medium text-gray-700"
         >
-          Paste your data here (tab-separated values):
+          Paste your data here (from your sheets):
         </label>
         <Textarea
           id="data-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Name&#9;Phone&#9;Email"
+          placeholder="name&#9;phone&#9;email"
           rows={5}
           className="w-full"
         />
