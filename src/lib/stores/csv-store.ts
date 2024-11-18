@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { z } from "zod";
 
 export const RowSchema = z.object({
@@ -16,11 +17,31 @@ interface CSVStore {
   deleteEntry: (id: string) => void;
 }
 
-export const useCSVStore = create<CSVStore>((set) => ({
-  parsedData: [],
-  setParsedData: (data) => set({ parsedData: data }),
-  deleteEntry: (id) =>
-    set((state) => ({
-      parsedData: state.parsedData.filter((item) => item.id !== id),
-    })),
-}));
+export const useCSVStore = create<CSVStore>()(
+  persist(
+    (set, get) => ({
+      parsedData: [],
+      setParsedData: (data) => {
+        const currentData = get().parsedData;
+        const newEntries = data.filter(
+          (newItem) =>
+            !currentData.some(
+              (existingItem) =>
+                existingItem.name === newItem.name ||
+                existingItem.phone === newItem.phone ||
+                existingItem.email === newItem.email
+            )
+        );
+        set({ parsedData: [...currentData, ...newEntries] });
+      },
+      deleteEntry: (id) =>
+        set((state) => ({
+          parsedData: state.parsedData.filter((item) => item.id !== id),
+        })),
+    }),
+    {
+      name: "csv-storage",
+      storage: createJSONStorage(() => localStorage),
+    }
+  )
+);

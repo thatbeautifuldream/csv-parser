@@ -140,23 +140,9 @@ export function CSVParser() {
       }
     });
 
-    // Update the table with any valid entries
+    // Update the global state with valid entries
     if (parsed.length > 0) {
-      // Filter out any parsed entries that already exist in parsedData
-      const uniqueParsed = parsed.filter(
-        (newEntry) =>
-          !parsedData.some(
-            (existingEntry) =>
-              existingEntry.email.toLowerCase() ===
-                newEntry.email.toLowerCase() ||
-              existingEntry.phone === newEntry.phone
-          )
-      );
-
-      // Only update if we have unique entries
-      if (uniqueParsed.length > 0) {
-        setParsedData([...parsedData, ...uniqueParsed]);
-      }
+      setParsedData(parsed);
     }
 
     // Set all collected errors
