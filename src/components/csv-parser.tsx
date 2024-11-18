@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useDropzone } from "react-dropzone";
+import { useState } from "react";
 import { z } from "zod";
-import Papa from "papaparse";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -13,120 +12,125 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-// Define the Zod schema for each row
+// Define the schema for each row
 const RowSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  number: z.string().regex(/^\d+$/, "Number must contain only digits"),
+  phone: z.string().regex(/^\+?[0-9]{10,14}$/, "Invalid phone number"),
   email: z.string().email("Invalid email address"),
 });
 
-// Define the type for a valid row
-type ValidRow = z.infer<typeof RowSchema>;
+type ParsedData = z.infer<typeof RowSchema>;
 
 export function CSVParser() {
-  const [parsedData, setParsedData] = useState<ValidRow[]>([]);
+  const [input, setInput] = useState("");
+  const [parsedData, setParsedData] = useState<ParsedData[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    Papa.parse(file, {
-      complete: (results) => {
-        const validRows: ValidRow[] = [];
-        const errors: string[] = [];
-        results.data.forEach((row: any, index: number) => {
-          if (index === 0) return; // Skip header row
-          try {
-            const validRow = RowSchema.parse({
-              name: row[0],
-              number: row[1],
-              email: row[2],
-            });
-            validRows.push(validRow);
-          } catch (err) {
-            if (err instanceof z.ZodError) {
-              errors.push(
-                `Row ${index + 1}: ${err.errors
-                  .map((e) => e.message)
-                  .join(", ")}`
-              );
-            }
-          }
-        });
+  const handleParse = () => {
+    setError(null);
+    const rows = input.trim().split("\n");
 
-        if (errors.length > 0) {
-          setError(errors.join("\n"));
+    if (rows.length === 0) {
+      setError("No data provided");
+      return;
+    }
+
+    // Check if first row is a header
+    const firstRow = rows[0].toLowerCase();
+    const isHeader =
+      firstRow.includes("name") ||
+      firstRow.includes("email") ||
+      firstRow.includes("phone");
+
+    // Start from index 1 if header is detected, otherwise start from 0
+    const dataRows = isHeader ? rows.slice(1) : rows;
+    const parsed: ParsedData[] = [];
+
+    for (const row of dataRows) {
+      const fields = row.split("\t");
+      if (fields.length !== 3) {
+        setError(`Invalid row: ${row}. Expected 3 fields.`);
+        return;
+      }
+
+      const rowData: Partial<ParsedData> = {};
+
+      // Process each field in the row
+      fields.forEach((field) => {
+        if (field.includes("@")) {
+          rowData.email = field.trim();
+        } else if (/^\+?[0-9]{10,14}$/.test(field.trim())) {
+          rowData.phone = field.trim();
         } else {
-          setError(null);
-          setParsedData(validRows);
+          rowData.name = field.trim();
         }
-      },
-      header: false,
-    });
-  }, []);
+      });
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
+      try {
+        const validatedRow = RowSchema.parse(rowData);
+        parsed.push(validatedRow);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          setError(
+            `Validation error in row: ${row}. ${err.errors
+              .map((e) => e.message)
+              .join(", ")}`
+          );
+          return;
+        }
+      }
+    }
+
+    setParsedData(parsed);
+  };
 
   return (
-    <div className="container mx-auto p-4">
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>CSV Parser</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer ${
-              isDragActive ? "border-primary bg-primary/10" : "border-gray-300"
-            }`}
-          >
-            <input {...getInputProps()} />
-            {isDragActive ? (
-              <p>Drop the CSV file here ...</p>
-            ) : (
-              <p>Drag and drop a CSV file here, or click to select a file</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
+    <div className="container mx-auto p-4 space-y-4">
+      <h1 className="text-2xl font-bold">Advanced Data Parser</h1>
+      <div className="space-y-2">
+        <label
+          htmlFor="data-input"
+          className="block text-sm font-medium text-gray-700"
+        >
+          Paste your data here (tab-separated values):
+        </label>
+        <Textarea
+          id="data-input"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Name&#9;Phone&#9;Email"
+          rows={5}
+          className="w-full"
+        />
+      </div>
+      <Button onClick={handleParse}>Parse Data</Button>
       {error && (
-        <Card className="mb-4 bg-destructive/10">
-          <CardHeader>
-            <CardTitle className="text-destructive">Error</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="whitespace-pre-wrap">{error}</pre>
-          </CardContent>
-        </Card>
+        <Alert variant="destructive">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
-
       {parsedData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Parsed Data</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Number</TableHead>
-                  <TableHead>Email</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {parsedData.map((row, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{row.name}</TableCell>
-                    <TableCell>{row.number}</TableCell>
-                    <TableCell>{row.email}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Email</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {parsedData.map((item, index) => (
+              <TableRow key={index}>
+                <TableCell>{item.name}</TableCell>
+                <TableCell>{item.phone}</TableCell>
+                <TableCell>{item.email}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
     </div>
   );
