@@ -22,12 +22,15 @@ import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
+const INITIAL_DISPLAY_COUNT = 10;
+
 export function CSVParser() {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string[]>([]);
   const { parsedData, setParsedData, deleteEntry } = useCSVStore();
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [showInput, setShowInput] = useState(true);
+  const [showAll, setShowAll] = useState(false);
 
   function detectDelimiter(content: string): string {
     // Check first line for delimiter
@@ -230,6 +233,13 @@ export function CSVParser() {
     setShowInput(parsedData.length === 0);
   }, [parsedData]);
 
+  const getDisplayedItems = () => {
+    if (showAll) {
+      return parsedData;
+    }
+    return parsedData.slice(0, INITIAL_DISPLAY_COUNT);
+  };
+
   return (
     <div className="container mx-auto p-4 space-y-4">
       <div className="flex justify-between items-center">
@@ -307,47 +317,73 @@ export function CSVParser() {
         </Alert>
       )}
       {parsedData.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[50px]">
-                <Checkbox
-                  checked={selectedRows.size === parsedData.length}
-                  onCheckedChange={toggleAll}
-                />
-              </TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {parsedData.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell>
+        <div className="space-y-2">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]">
                   <Checkbox
-                    checked={selectedRows.has(item.id)}
-                    onCheckedChange={() => toggleRow(item.id)}
+                    checked={selectedRows.size === parsedData.length}
+                    onCheckedChange={toggleAll}
                   />
-                </TableCell>
-                <TableCell>{item.name}</TableCell>
-                <TableCell>{item.phone}</TableCell>
-                <TableCell>{item.email}</TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deleteEntry(item.id)}
-                    className="hover:text-red-500"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TableCell>
+                </TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {getDisplayedItems().map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedRows.has(item.id)}
+                      onCheckedChange={() => toggleRow(item.id)}
+                    />
+                  </TableCell>
+                  <TableCell>{item.name}</TableCell>
+                  <TableCell>{item.phone}</TableCell>
+                  <TableCell>{item.email}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteEntry(item.id)}
+                      className="hover:text-red-500"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          {parsedData.length > INITIAL_DISPLAY_COUNT && !showAll && (
+            <div className="flex justify-center mt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowAll(true)}
+                className="flex items-center gap-2"
+              >
+                View All ({parsedData.length} entries)
+              </Button>
+            </div>
+          )}
+
+          {showAll && (
+            <div className="flex justify-center mt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowAll(false)}
+                className="flex items-center gap-2"
+              >
+                Show Less
+              </Button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
