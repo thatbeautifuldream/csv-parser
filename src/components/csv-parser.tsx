@@ -20,11 +20,13 @@ import {
   type ParsedData,
 } from "@/lib/stores/csv-store";
 import { z } from "zod";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export function CSVParser() {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string[]>([]);
   const { parsedData, setParsedData, deleteEntry } = useCSVStore();
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
   function detectDelimiter(content: string): string {
     // Check first line for delimiter
@@ -177,6 +179,42 @@ export function CSVParser() {
     }
   }
 
+  const toggleRow = (id: string) => {
+    setSelectedRows((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+
+      // Get the complete data for selected rows
+      const selectedData = parsedData.filter((item) => newSet.has(item.id));
+      console.log("Selected Rows Data:", selectedData);
+
+      return newSet;
+    });
+  };
+
+  const toggleAll = () => {
+    setSelectedRows((prev) => {
+      if (prev.size === parsedData.length) {
+        console.log("Selected Rows Data:", []);
+        return new Set();
+      }
+      const allIds = new Set(parsedData.map((item) => item.id));
+      console.log("Selected Rows Data:", parsedData);
+      return allIds;
+    });
+  };
+
+  const deleteSelectedEntries = () => {
+    selectedRows.forEach((id) => {
+      deleteEntry(id);
+    });
+    setSelectedRows(new Set()); // Clear selection after deletion
+  };
+
   return (
     <div className="container mx-auto p-4 space-y-4">
       <h1 className="text-2xl font-bold">CSV Data Parser</h1>
@@ -196,7 +234,19 @@ export function CSVParser() {
           className="w-full"
         />
       </div>
-      <Button onClick={handleParse}>Parse Data</Button>
+      <div className="flex gap-2">
+        <Button onClick={handleParse}>Parse Data</Button>
+        {selectedRows.size > 0 && (
+          <Button
+            variant="destructive"
+            onClick={deleteSelectedEntries}
+            className="flex items-center gap-2"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Selected ({selectedRows.size})
+          </Button>
+        )}
+      </div>
       {error.length > 0 && (
         <Alert variant="destructive">
           <AlertTitle>Errors Found</AlertTitle>
@@ -213,6 +263,12 @@ export function CSVParser() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={selectedRows.size === parsedData.length}
+                  onCheckedChange={toggleAll}
+                />
+              </TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Email</TableHead>
@@ -222,6 +278,12 @@ export function CSVParser() {
           <TableBody>
             {parsedData.map((item) => (
               <TableRow key={item.id}>
+                <TableCell>
+                  <Checkbox
+                    checked={selectedRows.has(item.id)}
+                    onCheckedChange={() => toggleRow(item.id)}
+                  />
+                </TableCell>
                 <TableCell>{item.name}</TableCell>
                 <TableCell>{item.phone}</TableCell>
                 <TableCell>{item.email}</TableCell>
