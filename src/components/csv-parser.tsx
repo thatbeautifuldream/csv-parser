@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Trash2 } from "lucide-react";
-import { v4 as uuidv4 } from "uuid";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -13,20 +11,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  useCSVStore,
   RowSchema,
+  useCSVStore,
   type ParsedData,
 } from "@/lib/stores/csv-store";
+import { Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
-import { Checkbox } from "@/components/ui/checkbox";
 
 export function CSVParser() {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string[]>([]);
   const { parsedData, setParsedData, deleteEntry } = useCSVStore();
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [showInput, setShowInput] = useState(true);
 
   function detectDelimiter(content: string): string {
     // Check first line for delimiter
@@ -169,6 +170,8 @@ export function CSVParser() {
     // Update the global state with valid entries
     if (parsed.length > 0) {
       setParsedData(parsed);
+      setShowInput(false); // Hide input after successful parse
+      setInput(""); // Clear input
     }
 
     // Set all collected errors
@@ -178,6 +181,13 @@ export function CSVParser() {
       setError([]);
     }
   }
+
+  // Modify handleInputChange to remove auto-parse
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    // Remove auto-parse functionality
+    setError([]); // Clear previous errors when input changes
+  };
 
   const toggleRow = (id: string) => {
     setSelectedRows((prev) => {
@@ -215,38 +225,75 @@ export function CSVParser() {
     setSelectedRows(new Set()); // Clear selection after deletion
   };
 
+  // if rows are empty, show input
+  useEffect(() => {
+    setShowInput(parsedData.length === 0);
+  }, [parsedData]);
+
   return (
     <div className="container mx-auto p-4 space-y-4">
-      <h1 className="text-2xl font-bold">CSV Data Parser</h1>
-      <div className="space-y-2">
-        <label
-          htmlFor="data-input"
-          className="block text-sm font-medium text-gray-700"
-        >
-          Paste your data here (from your sheets or CSV):
-        </label>
-        <Textarea
-          id="data-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="name,phone,email&#10;or&#10;name&#9;phone&#9;email"
-          rows={5}
-          className="w-full"
-        />
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">CSV Data Parser</h1>
+        <div className="flex gap-2">
+          {!showInput && selectedRows.size > 0 && (
+            <Button
+              variant="destructive"
+              onClick={deleteSelectedEntries}
+              className="flex items-center gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Selected ({selectedRows.size})
+            </Button>
+          )}
+          {!showInput && (
+            <Button
+              onClick={() => setShowInput(true)}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add More
+            </Button>
+          )}
+        </div>
       </div>
-      <div className="flex gap-2">
-        <Button onClick={handleParse}>Parse Data</Button>
-        {selectedRows.size > 0 && (
-          <Button
-            variant="destructive"
-            onClick={deleteSelectedEntries}
-            className="flex items-center gap-2"
+
+      {showInput && (
+        <div className="space-y-2">
+          <label
+            htmlFor="data-input"
+            className="block text-sm font-medium text-gray-700"
           >
-            <Trash2 className="h-4 w-4" />
-            Delete Selected ({selectedRows.size})
-          </Button>
-        )}
-      </div>
+            Paste your data here (from your sheets or CSV):
+          </label>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Email</TableHead>
+              </TableRow>
+            </TableHeader>
+          </Table>
+          <Textarea
+            id="data-input"
+            value={input}
+            onChange={handleInputChange}
+            placeholder="name phone email"
+            rows={5}
+            className="w-full"
+          />
+          {input.trim() && (
+            <Button
+              onClick={handleParse}
+              className="mt-2 flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
+          )}
+        </div>
+      )}
+
       {error.length > 0 && (
         <Alert variant="destructive">
           <AlertTitle>Errors Found</AlertTitle>
